@@ -64,6 +64,14 @@ describe('Session Router', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toBeDefined();
     });
+
+    it('rejects a session with an empty tabs array', async () => {
+      const res = await request(app)
+        .post('/sessions')
+        .send({ ...mockSession, tabs: [] });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBeDefined();
+    });
   });
 
   describe('DELETE /sessions/:id', () => {
