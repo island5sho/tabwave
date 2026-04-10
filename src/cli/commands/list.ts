@@ -9,6 +9,29 @@ export interface ListOptions {
   verbose?: boolean;
 }
 
+/**
+ * Formats and prints a single session's details to stdout.
+ */
+function printSession(session: Session, verbose: boolean): void {
+  const summary = summarizeSession(session);
+  console.log(chalk.cyan(`  ID:      `) + session.id);
+  console.log(chalk.cyan(`  Device:  `) + session.deviceName);
+  console.log(chalk.cyan(`  Tabs:    `) + summary.tabCount);
+  console.log(chalk.cyan(`  Updated: `) + new Date(session.updatedAt).toLocaleString());
+
+  if (verbose) {
+    for (const tab of session.tabs) {
+      console.log(chalk.gray(`    - [${tab.title}] ${tab.url}`));
+    }
+  }
+
+  console.log();
+}
+
+/**
+ * Fetches all sessions from the tabwave server and prints them to stdout.
+ * Exits with code 1 if the server cannot be reached.
+ */
 export async function listSessions(options: ListOptions = {}): Promise<void> {
   const host = options.host ?? 'localhost';
   const port = options.port ?? 3000;
@@ -33,18 +56,6 @@ export async function listSessions(options: ListOptions = {}): Promise<void> {
   console.log(chalk.bold(`\nFound ${sessions.length} session(s):\n`));
 
   for (const session of sessions) {
-    const summary = summarizeSession(session);
-    console.log(chalk.cyan(`  ID:      `) + session.id);
-    console.log(chalk.cyan(`  Device:  `) + session.deviceName);
-    console.log(chalk.cyan(`  Tabs:    `) + summary.tabCount);
-    console.log(chalk.cyan(`  Updated: `) + new Date(session.updatedAt).toLocaleString());
-
-    if (options.verbose) {
-      for (const tab of session.tabs) {
-        console.log(chalk.gray(`    - [${tab.title}] ${tab.url}`));
-      }
-    }
-
-    console.log();
+    printSession(session, options.verbose ?? false);
   }
 }
