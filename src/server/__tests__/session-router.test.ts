@@ -72,6 +72,13 @@ describe('Session Router', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toBeDefined();
     });
+
+    it('rejects a session with a missing deviceId', async () => {
+      const { deviceId, ...sessionWithoutDeviceId } = mockSession;
+      const res = await request(app).post('/sessions').send(sessionWithoutDeviceId);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBeDefined();
+    });
   });
 
   describe('DELETE /sessions/:id', () => {
