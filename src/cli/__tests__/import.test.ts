@@ -27,6 +27,13 @@ function runCommand(args: string[]): Promise<void> {
   return cmd.parseAsync(args, { from: 'user' });
 }
 
+/** Returns a jest spy on process.exit that throws an Error to halt execution. */
+function mockProcessExit(): jest.SpyInstance {
+  return jest.spyOn(process, 'exit').mockImplementation(() => {
+    throw new Error('exit');
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   (mockedFs.existsSync as jest.Mock).mockReturnValue(true);
@@ -47,33 +54,33 @@ describe('import command', () => {
 
   it('exits if file does not exist', async () => {
     (mockedFs.existsSync as jest.Mock).mockReturnValue(false);
-    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    const exitSpy = mockProcessExit();
     await expect(runCommand(['missing.json'])).rejects.toThrow('exit');
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('exits if file contains invalid JSON', async () => {
     (mockedFs.readFileSync as jest.Mock).mockReturnValue('not-json');
-    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    const exitSpy = mockProcessExit();
     await expect(runCommand(['bad.json'])).rejects.toThrow('exit');
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('exits if session validation fails', async () => {
     mockedValidate.mockReturnValue(['Missing name', 'Missing tabs']);
-    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    const exitSpy = mockProcessExit();
     await expect(runCommand(['bad-session.json'])).rejects.toThrow('exit');
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('exits if session exists and --overwrite not set', async () => {
     mockedAxios.get.mockResolvedValue({ status: 200, data: mockSession });
-    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    const exitSpy = mockProcessExit();
     await expect(runCommand(['work-session.json'])).rejects.toThrow('exit');
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('overwrites existing session when --overwrite flag is set', async () => {
+  it('overwrites existing session when --overwrite is set', async () => {
     mockedAxios.get.mockResolvedValue({ status: 200, data: mockSession });
     await runCommand(['work-session.json', '--overwrite']);
     expect(mockedAxios.put).toHaveBeenCalledWith(
