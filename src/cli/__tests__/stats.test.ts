@@ -74,10 +74,23 @@ describe("computeStats", () => {
     expect(stats.mostUsedTags[0].count).toBe(2);
   });
 
+  it("includes all unique tags in mostUsedTags", () => {
+    const stats = computeStats(mockSessions);
+    const tagNames = stats.mostUsedTags.map((t) => t.tag);
+    expect(tagNames).toContain("work");
+    expect(tagNames).toContain("dev");
+  });
+
   it("handles empty sessions array", () => {
     const stats = computeStats([]);
     expect(stats.totalSessions).toBe(0);
     expect(stats.avgTabsPerSession).toBe(0);
+    expect(stats.mostUsedTags).toHaveLength(0);
+  });
+
+  it("handles sessions with no tags", () => {
+    const stats = computeStats([mockSessions[2]]);
+    expect(stats.taggedSessions).toBe(0);
     expect(stats.mostUsedTags).toHaveLength(0);
   });
 });
