@@ -23,6 +23,9 @@ export async function readSessions(storeDir: string = DEFAULT_STORE_DIR): Promis
     if (err.code === 'ENOENT') {
       return { sessions: {}, lastUpdated: new Date().toISOString() };
     }
+    if (err instanceof SyntaxError) {
+      throw new Error(`Sessions store is corrupted (invalid JSON): ${err.message}`);
+    }
     throw new Error(`Failed to read sessions store: ${err.message}`);
   }
 }
@@ -63,4 +66,19 @@ export async function getSession(
 ): Promise<TabSession | null> {
   const store = await readSessions(storeDir);
   return store.sessions[sessionId] ?? null;
+}
+
+/**
+ * Returns all sessions as an array, optionally sorted by creation date descending.
+ */
+export async function listSessions(
+  storeDir: string = DEFAULT_STORE_DIR,
+  sortByCreatedDesc = true
+): Promise<TabSession[]> {
+  const store = await readSessions(storeDir);
+  const sessions = Object.values(store.sessions);
+  if (sortByCreatedDesc) {
+    sessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  return sessions;
 }
