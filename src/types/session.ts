@@ -1,69 +1,51 @@
-/**
- * Type definitions for browser tab sessions
- */
-
 export interface Tab {
-  id: string;
   url: string;
   title: string;
-  favIconUrl?: string;
-  active: boolean;
-  pinned: boolean;
-  index: number;
-  windowId: string;
-  lastAccessed: number;
-}
-
-export interface Window {
-  id: string;
-  tabs: Tab[];
-  focused: boolean;
-  incognito: boolean;
-  type: 'normal' | 'popup' | 'panel' | 'app';
+  pinned?: boolean;
+  favicon?: string;
 }
 
 export interface Session {
   id: string;
-  deviceId: string;
-  deviceName: string;
-  windows: Window[];
-  timestamp: number;
-  version: string;
-}
-
-export interface SessionMetadata {
-  id: string;
-  deviceId: string;
-  deviceName: string;
-  tabCount: number;
-  windowCount: number;
-  timestamp: number;
-  lastSynced?: number;
-}
-
-export interface Device {
-  id: string;
   name: string;
-  platform: string;
-  browser: string;
-  lastSeen: number;
-  active: boolean;
+  tabs: Tab[];
+  createdAt: string;
+  updatedAt: string;
+  tags?: string[];
+  archived?: boolean;
+  pinned?: boolean;
+  locked?: boolean;
+  note?: string;
+  label?: string;
+  favorite?: boolean;
+  snapshot?: string;
+  history?: HistoryEntry[];
 }
 
-export interface SyncConfig {
-  serverUrl: string;
-  deviceId: string;
-  deviceName: string;
-  syncInterval: number;
-  autoSync: boolean;
-  port: number;
+export interface HistoryEntry {
+  timestamp: string;
+  action: string;
+  tabCount: number;
 }
 
-export type SessionEvent = 'created' | 'updated' | 'deleted' | 'synced';
+export interface SessionDiff {
+  added: Tab[];
+  removed: Tab[];
+  unchanged: Tab[];
+}
 
-export interface SessionEventPayload {
-  event: SessionEvent;
+export interface ConflictResolution {
+  strategy: 'local' | 'remote' | 'merge';
+  resolved: Session;
+}
+
+export interface Schedule {
   sessionId: string;
-  deviceId: string;
-  timestamp: number;
+  cron: string;
+  action: string;
+  enabled: boolean;
+}
+
+export interface GroupedSessions {
+  [key: string]: Session[];
 }
