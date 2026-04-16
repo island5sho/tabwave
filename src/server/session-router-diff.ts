@@ -32,4 +32,29 @@ export function registerDiffRoute(router: Router, store: SessionStore): void {
 
     return res.json(session);
   });
+
+  /**
+   * Returns a summary of the diff (counts of added, removed, and changed tabs)
+   * without sending the full diff payload. Useful for lightweight polling.
+   */
+  router.post('/sessions/:id/diff/summary', (req, res) => {
+    const { id } = req.params;
+    const remoteSession = req.body;
+
+    if (!remoteSession || !remoteSession.tabs) {
+      return res.status(400).json({ error: 'Invalid session body' });
+    }
+
+    const localSession = store.get(id);
+    if (!localSession) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const diff = diffSessions(localSession, remoteSession);
+    return res.json({
+      added: diff.added?.length ?? 0,
+      removed: diff.removed?.length ?? 0,
+      changed: diff.changed?.length ?? 0,
+    });
+  });
 }
