@@ -6,6 +6,10 @@ export function registerLabelRoute(router: Router, store: SessionStore): void {
     const { id } = req.params;
     const { add, remove } = req.body as { add?: string[]; remove?: string[] };
 
+    if (!Array.isArray(add) && !Array.isArray(remove)) {
+      return res.status(400).json({ error: 'Request body must include at least one of: add, remove' });
+    }
+
     const session = await store.get(id);
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
