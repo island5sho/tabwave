@@ -51,6 +51,13 @@ describe("move command", () => {
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
+  it("exits with error on negative tabIndex", async () => {
+    await runCommand(["personal", "-1", "work"]);
+
+    expect(mockError).toHaveBeenCalledWith(expect.stringContaining("tabIndex must be a non-negative integer"));
+    expect(mockExit).toHaveBeenCalledWith(1);
+  });
+
   it("exits with error when server returns 404", async () => {
     mockedAxios.post.mockRejectedValueOnce({
       response: { data: { error: 'Session "personal" not found.' } },
@@ -59,6 +66,15 @@ describe("move command", () => {
     await runCommand(["personal", "0", "work"]);
 
     expect(mockError).toHaveBeenCalledWith(expect.stringContaining("Session \"personal\" not found."));
+    expect(mockExit).toHaveBeenCalledWith(1);
+  });
+
+  it("exits with generic error message when server response has no error field", async () => {
+    mockedAxios.post.mockRejectedValueOnce(new Error("Network Error"));
+
+    await runCommand(["personal", "0", "work"]);
+
+    expect(mockError).toHaveBeenCalledWith(expect.stringContaining("Network Error"));
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 });
