@@ -5,83 +5,60 @@ import { createUnpauseCommand } from '../commands/unpause';
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => { throw new Error('process.exit'); });
+const mockExit = jest.spyOn(process, 'exit').mockImplementation((code?: any) => { throw new Error(`exit:${code}`); });
+const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
 
 async function runCommand(args: string[]): Promise<void> {
   const program = new Command();
   program.addCommand(createUnpauseCommand());
-  await program.parseAsync(['node', 'tabwave', 'unpause', ...args]);
+  await program.parseAsync(['node', 'test', 'unpause', ...args]);
 }
 
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 describe('unpause command', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+  it('unpauses a session successfully', async () => {
+    mockedAxios.patch.mockResolvedValueOnce({ status: 200, data: {} });
 
-  it('unpauses a session and prints confirmation', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
-      data: { id: 'abc123', name: 'Work Session', status: 'active' },
-    });
+    await runCommand(['session-abc']);
 
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
-    await runCommand(['abc123']);
-
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      'http://localhost:3000/sessions/abc123/unpause'
+    expect(mockedAxios.patch).toHaveBeenCalledWith(
+      'http://localhost:3000/sessions/session-abc/unpause'
     );
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Session "Work Session" (abc123) has been unpaused.'
+    expect(mockLog).toHaveBeenCalledWith('Session "session-abc" has been unpaused.');
+  });
+
+  it('uses custom port when specified', async () => {
+    mockedAxios.patch.mockResolvedValueOnce({ status: 200, data: {} });
+
+    await runCommand(['session-abc', '--port', '4000']);
+
+    expect(mockedAxios.patch).toHaveBeenCalledWith(
+      'http://localhost:4000/sessions/session-abc/unpause'
     );
-    expect(consoleSpy).toHaveBeenCalledWith('Status: active');
-
-    consoleSpy.mockRestore();
   });
 
-  it('uses custom host and port', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
-      data: { id: 'xyz', name: 'Research', status: 'active' },
-    });
+  it('exits with error when session not found', async () => {
+    mockedAxios.patch.mockRejectedValueOnce({ response: { status: 404 } });
 
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
-    await runCommand(['xyz', '--host', '192.168.1.5', '--port', '4000']);
-
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      'http://192.168.1.5:4000/sessions/xyz/unpause'
-    );
-
-    consoleSpy.mockRestore();
+    await expect(runCommand(['missing-session'])).rejects.toThrow('exit:1');
+    expect(mockError).toHaveBeenCalledWith('Session "missing-session" not found.');
   });
 
-  it('prints error and exits on 404', async () => {
-    mockedAxios.post.mockRejectedValueOnce({ response: { status: 404 } });
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  it('exits with error when session is not paused', async () => {
+    mockedAxios.patch.mockRejectedValueOnce({ response: { status: 409 } });
 
-    await expect(runCommand(['missing-id'])).rejects.toThrow('process.exit');
-    expect(errorSpy).toHaveBeenCalledWith('Session not found: missing-id');
-    expect(mockExit).toHaveBeenCalledWith(1);
-
-    errorSpy.mockRestore();
+    await expect(runCommand(['active-session'])).rejects.toThrow('exit:1');
+    expect(mockError).toHaveBeenCalledWith('Session "active-session" is not paused.');
   });
 
-  it('prints error and exits on 409 (not paused)', async () => {
-    mockedAxios.post.mockRejectedValueOnce({ response: { status: 409 } });
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  it('exits with generic error on unexpected failure', async () => {
+    mockedAxios.patch.mockRejectedValueOnce({ message: 'Network Error' });
 
-    await expect(runCommand(['active-id'])).rejects.toThrow('process.exit');
-    expect(errorSpy).toHaveBeenCalledWith('Session is not paused: active-id');
-
-    errorSpy.mockRestore();
-  });
-
-  it('prints generic error on unexpected failure', async () => {
-    mockedAxios.post.mockRejectedValueOnce({ message: 'Network Error' });
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-    await expect(runCommand(['some-id'])).rejects.toThrow('process.exit');
-    expect(errorSpy).toHaveBeenCalledWith('Failed to unpause session:', 'Network Error');
-
-    errorSpy.mockRestore();
+    await expect(runCommand(['session-abc'])).rejects.toThrow('exit:1');
+    expect(mockError).toHaveBeenCalledWith('Failed to unpause session: Network Error');
   });
 });
