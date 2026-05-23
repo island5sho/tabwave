@@ -2,54 +2,67 @@ import axios from 'axios';
 import { Command } from 'commander';
 import { TabSession } from '../../types/session';
 
-const DORMANT_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
-
-export interface DormantReport {
-  totalDormant: number;
-  sessions: Array<{ name: string; daysSinceActive: number; protected: boolean; frozen: boolean }>;
+export interface DormantReportEntry {
+  id: string;
+  name: string;
+  tabCount: number;
+  lastUpdated: string;
+  dormantSince: string;
+  daysDormant: number;
 }
 
-export function buildDormantReport(sessions: TabSession[]): DormantReport {
+export function buildDormantReport(sessions: TabSession[]): DormantReportEntry[] {
   const now = Date.now();
-  const dormant = sessions
-    .filter((s) => now - new Date(s.updatedAt).getTime() >= DORMANT_THRESHOLD_MS)
-    .map((s) => ({
-      name: s.name,
-      daysSinceActive: Math.floor((now - new Date(s.updatedAt).getTime()) / (24 * 60 * 60 * 1000)),
-      protected: !!(s as any).protected,
-      frozen: !!(s as any).frozen,
-    }))
-    .sort((a, b) => b.daysSinceActive - a.daysSinceActive);
-  return { totalDormant: dormant.length, sessions: dormant };
+  return sessions
+    .filter((s) => s.dormant === true)
+    .map((s) => {
+      const dormantSince = s.dormantAt ?? s.updatedAt ?? s.createdAt;
+      const daysDormant = Math.floor((now - new Date(dormantSince).getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        id: s.id,
+        name: s.name,
+        tabCount: s.tabs.length,
+        lastUpdated: s.updatedAt ?? s.createdAt,
+        dormantSince,
+        daysDormant,
+      };
+    })
+    .sort((a, b) => b.daysDormant - a.daysDormant);
 }
 
-export function printDormantReport(report: DormantReport): void {
-  if (report.totalDormant === 0) {
+export function printDormantReport(entries: DormantReportEntry[]): void {
+  if (entries.length === 0) {
     console.log('No dormant sessions found.');
     return;
   }
-  console.log(`Found ${report.totalDormant} dormant session(s):`);
-  for (const s of report.sessions) {
-    const flags = [s.protected ? 'protected' : '', s.frozen ? 'frozen' : '']
-      .filter(Boolean)
-      .join(', ');
-    const flagStr = flags ? ` [${flags}]` : '';
-    console.log(`  ${s.name} — inactive for ${s.daysSinceActive} day(s)${flagStr}`);
+  console.log(`Dormant Sessions Report (${entries.length} total)\n`);
+  console.log(`${'Name'.padEnd(28)} ${'Tabs'.padEnd(6)} ${'Days Dormant'.padEnd(14)} Dormant Since`);
+  console.log('-'.repeat(72));
+  for (const entry of entries) {
+    const dormantDate = new Date(entry.dormantSince).toLocaleDateString();
+    console.log(
+      `${entry.name.padEnd(28)} ${String(entry.tabCount).padEnd(6)} ${String(entry.daysDormant).padEnd(14)} ${dormantDate}`
+    );
   }
 }
 
 export function createDormantReportCommand(baseUrl: string): Command {
   const cmd = new Command('dormant-report');
   cmd
-    .description('Show a report of all dormant sessions and their inactivity duration')
-    .action(async () => {
+    .description('Display a report of all dormant sessions')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
       try {
         const res = await axios.get(`${baseUrl}/sessions`);
         const sessions: TabSession[] = res.data;
         const report = buildDormantReport(sessions);
-        printDormantReport(report);
+        if (options.json) {
+          console.log(JSON.stringify(report, null, 2));
+        } else {
+          printDormantReport(report);
+        }
       } catch (err: any) {
-        console.error('Error fetching sessions:', err.response?.data?.error ?? err.message);
+        console.error('Failed to fetch dormant report:', err.message);
         process.exit(1);
       }
     });
