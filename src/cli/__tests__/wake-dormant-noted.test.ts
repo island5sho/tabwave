@@ -1,62 +1,56 @@
 import axios from 'axios';
-import { printWakeDormantNotedResult, createWakeDormantNotedCommand } from '../commands/wake-dormant-noted';
+import { createWakeDormantNotedCommand, printWakeDormantNotedResult } from '../commands/wake-dormant-noted';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
+const BASE_URL = 'http://localhost:3000';
+
+function makeSession(overrides = {}) {
+  return {
+    id: 'session-1',
+    name: 'Test Session',
+    tabs: [],
+    dormant: false,
+    note: 'Some note',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
 describe('printWakeDormantNotedResult', () => {
-  let consoleSpy: jest.SpyInstance;
-
-  beforeEach(() => {
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    consoleSpy.mockRestore();
-  });
-
-  it('prints message when no sessions woken', () => {
-    printWakeDormantNotedResult({ woken: [] });
-    expect(consoleSpy).toHaveBeenCalledWith('No dormant noted sessions to wake.');
-  });
-
-  it('prints woken session ids', () => {
-    printWakeDormantNotedResult({ woken: ['abc', 'def'] });
-    expect(consoleSpy).toHaveBeenCalledWith('Woke 2 dormant noted session(s):');
-    expect(consoleSpy).toHaveBeenCalledWith('  - abc');
-    expect(consoleSpy).toHaveBeenCalledWith('  - def');
+  it('prints the woken session info', () => {
+    const spy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const session = makeSession();
+    printWakeDormantNotedResult(session as any);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('Test Session'));
+    spy.mockRestore();
   });
 });
 
 describe('createWakeDormantNotedCommand', () => {
-  let consoleSpy: jest.SpyInstance;
-  let errorSpy: jest.SpyInstance;
-  let exitSpy: jest.SpyInstance;
+  afterEach(() => jest.clearAllMocks());
 
-  beforeEach(() => {
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+  it('calls the correct endpoint and prints result', async () => {
+    const session = makeSession();
+    mockedAxios.post.mockResolvedValueOnce({ data: { session } });
+    const spy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const cmd = createWakeDormantNotedCommand(BASE_URL);
+    await cmd.parseAsync(['node', 'test', 'session-1']);
+    expect(mockedAxios.post).toHaveBeenCalledWith(`${BASE_URL}/sessions/session-1/wake-dormant-noted`);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('session-1'));
+    spy.mockRestore();
   });
 
-  afterEach(() => {
-    consoleSpy.mockRestore();
-    errorSpy.mockRestore();
+  it('prints error and exits on failure', async () => {
+    mockedAxios.post.mockRejectedValueOnce({ response: { data: { error: 'Session not found' } } });
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    const cmd = createWakeDormantNotedCommand(BASE_URL);
+    await expect(cmd.parseAsync(['node', 'test', 'bad-id'])).rejects.toThrow('exit');
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('Session not found'));
+    errSpy.mockRestore();
     exitSpy.mockRestore();
-  });
-
-  it('calls the server and prints result', async () => {
-    mockedAxios.post.mockResolvedValue({ data: { woken: ['session-1'] } });
-    const cmd = createWakeDormantNotedCommand();
-    await cmd.parseAsync(['node', 'test']);
-    expect(mockedAxios.post).toHaveBeenCalledWith('http://localhost:3000/sessions/wake-dormant-noted');
-    expect(consoleSpy).toHaveBeenCalledWith('Woke 1 dormant noted session(s):');
-  });
-
-  it('exits on server error', async () => {
-    mockedAxios.post.mockRejectedValue(new Error('connection refused'));
-    const cmd = createWakeDormantNotedCommand();
-    await expect(cmd.parseAsync(['node', 'test'])).rejects.toThrow('exit');
-    expect(errorSpy).toHaveBeenCalledWith('Failed to wake dormant noted sessions:', 'connection refused');
   });
 });

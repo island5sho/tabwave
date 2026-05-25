@@ -1,34 +1,23 @@
-import axios from 'axios';
 import { Command } from 'commander';
+import axios from 'axios';
+import { Session } from '../../types/session';
 
-export interface WakeDormantNotedResult {
-  woken: string[];
+export function printWakeDormantNotedResult(session: Session): void {
+  console.log(`Woke dormant noted session: ${session.name} (${session.id})`);
 }
 
-export function printWakeDormantNotedResult(result: WakeDormantNotedResult): void {
-  if (result.woken.length === 0) {
-    console.log('No dormant noted sessions to wake.');
-    return;
-  }
-  console.log(`Woke ${result.woken.length} dormant noted session(s):`);
-  for (const id of result.woken) {
-    console.log(`  - ${id}`);
-  }
-}
-
-export function createWakeDormantNotedCommand(): Command {
+export function createWakeDormantNotedCommand(baseUrl: string): Command {
   const cmd = new Command('wake-dormant-noted');
   cmd
-    .description('Wake all dormant sessions that have a note attached')
-    .option('--host <host>', 'Server host', 'localhost')
-    .option('--port <port>', 'Server port', '3000')
-    .action(async (opts) => {
-      const base = `http://${opts.host}:${opts.port}`;
+    .description('Wake a dormant session that has a note')
+    .argument('<id>', 'Session ID')
+    .action(async (id: string) => {
       try {
-        const res = await axios.post(`${base}/sessions/wake-dormant-noted`);
-        printWakeDormantNotedResult(res.data);
+        const res = await axios.post(`${baseUrl}/sessions/${id}/wake-dormant-noted`);
+        printWakeDormantNotedResult(res.data.session);
       } catch (err: any) {
-        console.error('Failed to wake dormant noted sessions:', err.message);
+        const msg = err.response?.data?.error ?? err.message;
+        console.error(`Error: ${msg}`);
         process.exit(1);
       }
     });
